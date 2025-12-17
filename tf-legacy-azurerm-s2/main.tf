@@ -1,12 +1,12 @@
 
 terraform {
-  required_version = ">= 1.14.1"
+  required_version = ">= 1.1.3"
 
   #Declare AzureRM Provider version constraint
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.55.0"
+      version = "=3.116.0"
     }
   }
 
@@ -17,16 +17,14 @@ terraform {
 
 provider "azurerm" {
   features {}
-  subscription_id            = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  resource_provider_registrations = "none"
+  subscription_id            = "db9d0627-cb52-4e79-8c04-49813cfdbed1" # Non-Production
+  skip_provider_registration = true
 }
 
 resource "azurerm_resource_group" "example" {
   name     = "example-resources"
   location = "southeastasia"
 }
-
-data "azurerm_client_config" "current" {}
 
 resource "azurerm_storage_account" "example" {
   name                     = "examplestorageacc"
@@ -52,6 +50,13 @@ resource "azurerm_synapse_workspace" "example" {
   sql_administrator_login              = "sqladminuser"
   sql_administrator_login_password     = "H@Sh1CoR3!"
 
+  #Static block for a deprecating attributes
+  sql_aad_admin {
+    login     = "AzureAD Admin"
+    object_id = "00000000-0000-0000-0000-000000000000"
+    tenant_id = "00000000-0000-0000-0000-000000000000"
+  }
+
   identity {
     type = "SystemAssigned"
   }
@@ -69,6 +74,16 @@ resource "azurerm_synapse_workspace" "example2" {
   storage_data_lake_gen2_filesystem_id = azurerm_storage_data_lake_gen2_filesystem.example.id
   sql_administrator_login              = "sqladminuser"
   sql_administrator_login_password     = "H@Sh1CoR3!"
+
+  #Dynamic blocks for a deprecating attributes
+  dynamic "sql_aad_admin" {
+    for_each = [1]
+    content {
+      login     = "AzureAD Admin"
+      object_id = "00000000-0000-0000-0000-000000000000"
+      tenant_id = "00000000-0000-0000-0000-000000000000"
+    }
+  }
 
   identity {
     type = "SystemAssigned"
@@ -89,6 +104,11 @@ resource "azurerm_api_management" "example" {
   publisher_email     = "company@terraform.io"
 
   sku_name = "Developer_1"
+
+  #Deprecating attribute
+  policy {
+    xml_content = "TEST"
+  }
 }
 
 #Dynamic block attribute deprecation to a new resource type
@@ -100,34 +120,17 @@ resource "azurerm_api_management" "example2" {
   publisher_email     = "company@terraform.io"
 
   sku_name = "Developer_1"
+
+  #Deprecating dynamic attribute
+  dynamic "policy" {
+    for_each = [1]
+    content {
+      xml_content = "TEST"
+    }
+  }
 }
 
 resource "azurerm_api_management_policy" "example" {
   api_management_id = azurerm_api_management.example.id
-  xml_content       = <<EOF
-<policies>
-  <inbound>
-    <base />
-  </inbound>
-  <outbound>
-    <base />
-  </outbound>
-</policies>
-EOF
-}
-
-# Added new resource for Synapse Workspace AAD admin (replaces deprecated sql_aad_admin block)
-resource "azurerm_synapse_workspace_sql_aad_admin" "example" {
-  synapse_workspace_id = azurerm_synapse_workspace.example.id
-  login                = "AzureAD Admin"
-  object_id            = data.azurerm_client_config.current.object_id
-  tenant_id            = data.azurerm_client_config.current.tenant_id
-}
-
-# Added new resource for Synapse Workspace AAD admin (replaces deprecated sql_aad_admin block)
-resource "azurerm_synapse_workspace_sql_aad_admin" "example2" {
-  synapse_workspace_id = azurerm_synapse_workspace.example2.id
-  login                = "AzureAD Admin"
-  object_id            = data.azurerm_client_config.current.object_id
-  tenant_id            = data.azurerm_client_config.current.tenant_id
+  xml_content       = file("example.xml")
 }
